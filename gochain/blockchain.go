@@ -29,11 +29,37 @@ func (b *Block) Print() {
 	fmt.Printf("transactions:	%s\n", b.transactions)
 }
 
+type BlockChain struct {
+	transactionPool []string
+	chain 			[]*Block
+}
+
+func (bc *BlockChain) CreateBlock(nonce int, previousHash string) *Block {
+	new_block := NewBlock(nonce, previousHash)
+	bc.chain = append(bc.chain, new_block)
+
+	return new_block
+}
+
+func NewBlockChain() *BlockChain {
+	bc := new(BlockChain) 
+	bc.CreateBlock(0, "init hash")
+
+	return bc
+}
+
+func (bc *BlockChain) Print()  {
+	for i, block := range bc.chain {
+		fmt.Printf("Chain %d\n", i)
+		block.Print()
+	}
+}
+
 func init() {
 	log.SetPrefix("GoChain: ")
 }
 
 func main() {
-	block := NewBlock(0, "initial hash")
-	block.Print()
+	blockChain := NewBlockChain()
+	blockChain.Print()
 }
