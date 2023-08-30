@@ -12,28 +12,38 @@ import (
 )
 
 type seller struct {
-	Name  string
-	Phone string
+	Name  string `json:"nom"`
+	Phone string `json:"telephone"`
+	IsPro bool   `json:"pro"`
 }
 
 type carAd struct {
-	Name        string
-	Price       int
-	Url         string
-	Year        int
-	Mileage     int
-	Fuel        string
-	Gearbox     string
-	Description string
-	Pictures    []string
-	Location    string
-	Seller      *seller
+	Name        string   `json:"nom"`
+	Price       int      `json:"prix"`
+	Url         string   `json:"url"`
+	Year        int      `json:"annee"`
+	Mileage     int      `json:"kilometrage"`
+	Fuel        string   `json:"carburant"`
+	Gearbox     string   `json:"boite_de_vitesse"`
+	Description string   `json:"description"`
+	Pictures    []string `json:"photos"`
+	Location    string   `json:"localisation"`
+	Seller      *seller  `json:"vendeur"`
 }
 
 func main() {
 	c := colly.NewCollector(
 		colly.UserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"),
+		//colly.Async(true),
 	)
+
+	// Define headers
+	headers := map[string]string{
+		"accept":          "application/json",
+		"accept-language": "en-FR,en;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-GB;q=0.6,en-US;q=0.5",
+		"authorization":   "Bearer ", // Replace with your actual access token
+		"content-type":    "application/x-www-form-urlencoded",
+	}
 
 	// another collector to scrape ad details
 	detailCollector := c.Clone()
@@ -89,23 +99,49 @@ func main() {
 		ad.Description = strings.TrimSpace(description)
 	})
 
-	/*detailCollector.OnHTML("div[class^=\"_1o09v\"]", func(e *colly.HTMLElement) {
+	detailCollector.OnHTML("aside > div[class^=\"_1o09v\"] > section > div:nth-child(1)", func(e *colly.HTMLElement) {
 		seller := new(seller)
-		seller.Name = e.ChildText("a[class^=\"text-headline-2\"]")
-		sellerUrl := e.ChildAttr("a[class^=\"text-headline-2\"]", "href")
+		seller.Name = e.ChildText("div:nth-child(1) > div:nth-child(2) > a")
 
-		// Visit the seller's profile page to get the phone number
-		detailCollector.Visit(e.Request.AbsoluteURL(sellerUrl))
+		//#aside > div._1o09v > section > div.sc-11fe9401-0.kiGxvX > div.src__Box-sc-10d053g-0.eWhWEg > a
+		if seller.Name == "" {
+			link := e.ChildAttr("div:nth-child(2) > a", "href")
+			seller.Name = e.ChildText("div:nth-child(1) > div:nth-child(2) > a")
+
+			fmt.Println("link: ", link)
+		}
+
+		// Check if the seller is a pro
+		proText := e.ChildText("div.sc-11fe9401-0.kiGxvX > div.src__Box-sc-10d053g-0.bfCalR > span")
+		if proText != "" {
+			seller.IsPro = true
+		}
+
+		// Get the phone number
+		/*detailCollector.Post(
+			"https://api.leboncoin.fr/api/utils/phonenumber.json",
+			map[string]string{"app_id": "leboncoin_web_utils", "list_id": "2400112289", "text": "1"},
+		)*/
 
 		ads[len(ads)-1].Seller = seller
-	})*/
+	})
 
 	detailCollector.OnRequest(func(r *colly.Request) {
 		log.Println("Visiting Details page ", r.URL)
+		if r.Method == "POST" {
+			// Set the headers
+			for key, value := range headers {
+				r.Headers.Set(key, value)
+			}
+		}
 	})
 
 	c.OnRequest(func(r *colly.Request) {
 		log.Println("Visiting ", r.URL)
+	})
+
+	detailCollector.OnResponse(func(r *colly.Response) {
+		log.Println("Visited (Probably Captcha 😭", r.Request.URL)
 	})
 
 	c.OnError(func(r *colly.Response, err error) {
@@ -134,4 +170,9 @@ func main() {
 	})
 
 	c.Visit("https://www.leboncoin.fr/f/voitures/u_car_brand--TOYOTA")
+
+	// Wait until threads are finished
+	/*detailCollector.Wait()
+
+	c.Wait()*/
 }
